@@ -1,4 +1,4 @@
-# Binance Futures Testnet — Trading Bot (Enhanced)
+# Binance Futures Testnet — Trading Bot
 
 A Python application for trading on the **Binance USDT-M Futures Testnet**, with a full set of bonus features: TWAP, Grid, interactive menu CLI, web dashboard, order history, live P&L, dry-run mode, and config file support.
 
