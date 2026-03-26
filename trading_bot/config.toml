@@ -1,0 +1,12 @@
+# Binance Futures Testnet — Bot Configuration
+# Values here are overridden by environment variables.
+
+[bot]
+# api_key    = "YOUR_API_KEY"       # prefer env var BINANCE_TESTNET_API_KEY
+# api_secret = "YOUR_API_SECRET"    # prefer env var BINANCE_TESTNET_API_SECRET
+
+base_url       = "https://testnet.binancefuture.com"
+recv_window    = 5000
+log_level      = "INFO"    # DEBUG | INFO | WARNING | ERROR
+dry_run        = false
+default_symbol = "BTCUSDT"

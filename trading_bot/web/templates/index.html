@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trading Bot — Binance Futures Testnet</title>
+<style>
+  :root {
+    --bg:        #0d1117;
+    --bg2:       #161b22;
+    --bg3:       #21262d;
+    --border:    #30363d;
+    --text:      #e6edf3;
+    --muted:     #7d8590;
+    --accent:    #58a6ff;
+    --green:     #3fb950;
+    --red:       #f85149;
+    --yellow:    #d29922;
+    --purple:    #a371f7;
+    --radius:    8px;
+    --font:      'JetBrains Mono', 'Fira Code', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 13px; }
+
+  /* Layout */
+  header { background: var(--bg2); border-bottom: 1px solid var(--border);
+           padding: 12px 24px; display: flex; align-items: center; gap: 16px; }
+  header h1 { font-size: 15px; color: var(--accent); }
+  .badge { font-size: 10px; padding: 2px 8px; border-radius: 12px; font-weight: 700; }
+  .badge-live { background: rgba(63,185,80,.2); color: var(--green); border: 1px solid var(--green); }
+  .badge-dry  { background: rgba(210,153,34,.2); color: var(--yellow); border: 1px solid var(--yellow); }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); margin-left: auto; }
+  .status-dot.online  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .status-dot.offline { background: var(--red); }
+  #statusText { font-size: 11px; color: var(--muted); }
+
+  main { display: grid; grid-template-columns: 320px 1fr; gap: 0; min-height: calc(100vh - 49px); }
+  aside { background: var(--bg2); border-right: 1px solid var(--border); padding: 16px; overflow-y: auto; }
+  .content { padding: 16px; overflow-y: auto; }
+
+  /* Nav tabs */
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  .tab { padding: 6px 12px; border-radius: var(--radius); cursor: pointer; color: var(--muted);
+         font-size: 12px; border: none; background: none; font-family: var(--font); }
+  .tab:hover { color: var(--text); background: var(--bg3); }
+  .tab.active { color: var(--accent); background: rgba(88,166,255,.1); }
+
+  /* Panels */
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* Cards */
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
+          padding: 16px; margin-bottom: 12px; }
+  .card h3 { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em;
+             margin-bottom: 12px; }
+  .stat-row { display: flex; justify-content: space-between; padding: 6px 0;
+              border-bottom: 1px solid var(--border); }
+  .stat-row:last-child { border: none; }
+  .stat-label { color: var(--muted); }
+  .stat-val { font-weight: 700; }
+  .pos-green { color: var(--green); }
+  .pos-red   { color: var(--red); }
+
+  /* Forms */
+  .form-group { margin-bottom: 10px; }
+  label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  input, select { width: 100%; background: var(--bg3); border: 1px solid var(--border);
+                  border-radius: 6px; color: var(--text); padding: 7px 10px;
+                  font-family: var(--font); font-size: 13px; outline: none; }
+  input:focus, select:focus { border-color: var(--accent); }
+  input::placeholder { color: var(--muted); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+  /* Buttons */
+  .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer;
+         font-family: var(--font); font-size: 12px; font-weight: 700; transition: opacity .15s; }
+  .btn:hover { opacity: .85; }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .btn-buy    { background: var(--green); color: #0d1117; width: 100%; margin-top: 4px; }
+  .btn-sell   { background: var(--red);   color: #fff;    width: 100%; margin-top: 4px; }
+  .btn-submit { background: var(--accent); color: #0d1117; width: 100%; margin-top: 4px; }
+  .btn-sm     { padding: 4px 10px; font-size: 11px; }
+  .btn-cancel { background: var(--bg3); color: var(--red); border: 1px solid var(--red); }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { color: var(--muted); text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border);
+       font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }
+  td { padding: 7px 8px; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border: none; }
+  tr:hover td { background: rgba(255,255,255,.02); }
+  .tag { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+  .tag-buy    { background: rgba(63,185,80,.15);  color: var(--green); }
+  .tag-sell   { background: rgba(248,81,73,.15);  color: var(--red); }
+  .tag-market { background: rgba(88,166,255,.15); color: var(--accent); }
+  .tag-limit  { background: rgba(163,113,247,.15);color: var(--purple); }
+  .tag-stop   { background: rgba(210,153,34,.15); color: var(--yellow); }
+  .tag-dry    { background: rgba(210,153,34,.1);  color: var(--yellow); font-size: 9px; }
+  .tag-ok     { color: var(--green); }
+  .tag-err    { color: var(--red); }
+
+  /* Toast notifications */
+  #toast { position: fixed; bottom: 24px; right: 24px; z-index: 999;
+           display: flex; flex-direction: column; gap: 8px; }
+  .toast { padding: 10px 16px; border-radius: var(--radius); font-size: 12px;
+           animation: slideIn .2s ease; border: 1px solid; max-width: 340px; }
+  .toast.ok  { background: rgba(63,185,80,.15);  border-color: var(--green); color: var(--green); }
+  .toast.err { background: rgba(248,81,73,.15);  border-color: var(--red);   color: var(--red); }
+  .toast.info{ background: rgba(88,166,255,.15); border-color: var(--accent);color: var(--accent); }
+  @keyframes slideIn { from { transform: translateX(20px); opacity:0; } to { transform: none; opacity:1; } }
+
+  /* Progress bar */
+  .progress { background: var(--bg3); border-radius: 4px; height: 6px; overflow: hidden; margin: 8px 0; }
+  .progress-bar { height: 100%; background: var(--accent); transition: width .3s; }
+
+  /* TWAP log */
+  .slice-log { max-height: 200px; overflow-y: auto; background: var(--bg); border: 1px solid var(--border);
+               border-radius: 6px; padding: 8px; font-size: 11px; }
+  .slice-ok  { color: var(--green); }
+  .slice-err { color: var(--red); }
+
+  /* Grid preview */
+  .grid-preview { display: flex; flex-direction: column; gap: 3px; max-height: 260px; overflow-y: auto; }
+  .grid-level { display: flex; justify-content: space-between; padding: 5px 10px;
+                border-radius: 4px; font-size: 11px; }
+  .grid-sell { background: rgba(248,81,73,.08); border-left: 3px solid var(--red); }
+  .grid-buy  { background: rgba(63,185,80,.08); border-left: 3px solid var(--green); }
+
+  /* Refresh */
+  .refresh-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; color: var(--muted); font-size: 11px; }
+  .spin { display: inline-block; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Side-panel section headers */
+  .section-title { font-size: 10px; color: var(--muted); text-transform: uppercase;
+                   letter-spacing: .08em; margin: 16px 0 8px; }
+  aside .section-title:first-child { margin-top: 0; }
+
+  /* Misc */
+  .empty { color: var(--muted); font-size: 12px; padding: 20px 0; text-align: center; }
+  .error-box { background: rgba(248,81,73,.1); border: 1px solid var(--red);
+               border-radius: 6px; padding: 10px; color: var(--red); font-size: 12px; margin-top: 8px; }
+  .hidden { display: none !important; }
+  select option { background: var(--bg2); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⬡ Trading Bot</h1>
+  <span class="badge {{ 'badge-dry' if dry_run else 'badge-live' }}">
+    {{ 'DRY RUN' if dry_run else 'TESTNET' }}
+  </span>
+  <span id="statusText">Connecting…</span>
+  <span class="status-dot" id="statusDot"></span>
+</header>
+
+<main>
+  <!-- ── LEFT SIDEBAR: account ── -->
+  <aside>
+    <p class="section-title">Account</p>
+    <div class="card">
+      <div class="stat-row"><span class="stat-label">Wallet Balance</span>
+        <span class="stat-val" id="walletBal">—</span></div>
+      <div class="stat-row"><span class="stat-label">Available</span>
+        <span class="stat-val" id="availBal">—</span></div>
+      <div class="stat-row"><span class="stat-label">Unrealised P&L</span>
+        <span class="stat-val" id="upnl">—</span></div>
+    </div>
+
+    <p class="section-title">Open Positions</p>
+    <div id="positionsList"><p class="empty">Loading…</p></div>
+
+    <p class="section-title">Open Orders</p>
+    <div id="openOrdersList"><p class="empty">Loading…</p></div>
+    <button class="btn btn-sm btn-submit" style="margin-top:4px;width:100%" onclick="loadAccount();loadOpenOrders()">↻ Refresh</button>
+
+    <!-- credential warning banner — shown only when keys are missing/wrong -->
+    <div id="cred-banner" style="display:none;margin-top:12px;background:rgba(210,153,34,.12);
+         border:1px solid var(--yellow);border-radius:6px;padding:10px;font-size:11px;color:var(--yellow);">
+      <b>⚠ API Key Issue</b>
+      <div id="cred-hint" style="margin-top:6px;line-height:1.6;white-space:pre-wrap;color:var(--muted)"></div>
+    </div>
+  </aside>
+
+  <!-- ── MAIN CONTENT ── -->
+  <div class="content">
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('order',this)">Place Order</button>
+      <button class="tab" onclick="switchTab('twap',this)">TWAP</button>
+      <button class="tab" onclick="switchTab('grid',this)">Grid</button>
+      <button class="tab" onclick="switchTab('history',this)">History</button>
+    </div>
+
+    <!-- ── ORDER PANEL ── -->
+    <div class="panel active" id="panel-order">
+      <div class="card" style="max-width:480px">
+        <h3>New Order</h3>
+        <div class="row2">
+          <div class="form-group">
+            <label>Symbol
+              <span style="color:var(--yellow);font-size:10px;margin-left:6px"
+                    title="USDT-M Testnet only supports USDT pairs (e.g. BTCUSDT, ETHUSDT). USDC or BUSD pairs will return Invalid Symbol.">
+                ⚠ must end in USDT
+              </span>
+            </label>
+            <input id="o-symbol" value="BTCUSDT" placeholder="BTCUSDT" oninput="validateSymbolHint(this,'o-sym-hint')">
+            <div id="o-sym-hint" style="font-size:10px;margin-top:3px;display:none;color:var(--red)"></div>
+          </div>
+          <div class="form-group">
+            <label>Order Type</label>
+            <select id="o-type" onchange="togglePriceFields()">
+              <option>MARKET</option>
+              <option>LIMIT</option>
+              <option>STOP_MARKET</option>
+            </select>
+          </div>
+        </div>
+        <div class="row2">
+          <div class="form-group" id="price-group" style="display:none">
+            <label>Limit Price</label>
+            <input id="o-price" placeholder="e.g. 65000">
+          </div>
+          <div class="form-group" id="stop-group" style="display:none">
+            <label>Stop Price</label>
+            <input id="o-stop" placeholder="e.g. 70000">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Quantity</label>
+          <input id="o-qty" placeholder="e.g. 0.001">
+        </div>
+        <div class="row2" style="gap:8px;margin-top:8px">
+          <button class="btn btn-buy"  onclick="placeOrder('BUY')">▲ BUY</button>
+          <button class="btn btn-sell" onclick="placeOrder('SELL')">▼ SELL</button>
+        </div>
+        <div id="order-error" class="error-box hidden"></div>
+      </div>
+
+      <div class="card" style="max-width:480px">
+        <h3>Cancel Order</h3>
+        <div class="row2">
+          <div class="form-group">
+            <label>Symbol</label>
+            <input id="c-symbol" placeholder="BTCUSDT">
+          </div>
+          <div class="form-group">
+            <label>Order ID</label>
+            <input id="c-oid" placeholder="3871204956">
+          </div>
+        </div>
+        <button class="btn btn-cancel btn-submit" onclick="cancelOrder()">Cancel Order</button>
+        <div id="cancel-error" class="error-box hidden"></div>
+      </div>
+    </div>
+
+    <!-- ── TWAP PANEL ── -->
+    <div class="panel" id="panel-twap">
+      <div class="card" style="max-width:520px">
+        <h3>TWAP Execution</h3>
+        <p style="color:var(--muted);font-size:11px;margin-bottom:12px">
+          Splits a large order into N equal market slices placed at fixed intervals.
+        </p>
+        <div class="row2">
+          <div class="form-group">
+            <label>Symbol</label>
+            <input id="t-symbol" value="BTCUSDT" oninput="validateSymbolHint(this,'t-sym-hint')">
+            <div id="t-sym-hint" style="font-size:10px;margin-top:3px;display:none;color:var(--red)"></div>
+          </div>
+          <div class="form-group">
+            <label>Side</label>
+            <select id="t-side"><option>BUY</option><option>SELL</option></select>
+          </div>
+        </div>
+        <div class="row2">
+          <div class="form-group">
+            <label>Total Quantity</label>
+            <input id="t-qty" placeholder="e.g. 0.01">
+          </div>
+          <div class="form-group">
+            <label>Slices (≥ 2)</label>
+            <input id="t-slices" value="5" type="number" min="2" max="100">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Interval between slices (seconds)</label>
+          <input id="t-interval" value="60" type="number" min="1">
+        </div>
+        <button class="btn btn-submit" onclick="startTwap()" id="twap-btn">▶ Start TWAP</button>
+        <div id="twap-error" class="error-box hidden"></div>
+      </div>
+
+      <div class="card" id="twap-progress-card" style="max-width:520px;display:none">
+        <h3>Progress — <span id="twap-run-label"></span></h3>
+        <div class="progress"><div class="progress-bar" id="twap-bar" style="width:0%"></div></div>
+        <p style="color:var(--muted);font-size:11px;margin-bottom:8px">
+          <span id="twap-done">0</span> / <span id="twap-total">0</span> slices &nbsp;·&nbsp;
+          Executed: <span id="twap-exec">—</span> &nbsp;·&nbsp;
+          Status: <span id="twap-status">running</span>
+        </p>
+        <div class="slice-log" id="twap-log"></div>
+      </div>
+    </div>
+
+    <!-- ── GRID PANEL ── -->
+    <div class="panel" id="panel-grid">
+      <div class="card" style="max-width:520px">
+        <h3>Grid Trading</h3>
+        <p style="color:var(--muted);font-size:11px;margin-bottom:12px">
+          Places symmetric SELL orders above and BUY orders below the centre price.
+        </p>
+        <div class="row2">
+          <div class="form-group">
+            <label>Symbol</label>
+            <input id="g-symbol" value="BTCUSDT" oninput="validateSymbolHint(this,'g-sym-hint')">
+            <div id="g-sym-hint" style="font-size:10px;margin-top:3px;display:none;color:var(--red)"></div>
+          </div>
+          <div class="form-group">
+            <label>Centre Price</label>
+            <input id="g-centre" placeholder="e.g. 68000">
+          </div>
+        </div>
+        <div class="row2">
+          <div class="form-group">
+            <label>Step (price gap)</label>
+            <input id="g-step" placeholder="e.g. 500">
+          </div>
+          <div class="form-group">
+            <label>Levels (each side)</label>
+            <input id="g-levels" value="3" type="number" min="1" max="20">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Qty per Level</label>
+          <input id="g-qty" placeholder="e.g. 0.001">
+        </div>
+        <button class="btn btn-submit" onclick="previewGrid()">Preview Grid</button>
+        <div id="grid-error" class="error-box hidden"></div>
+      </div>
+
+      <div id="grid-preview-card" class="card" style="max-width:520px;display:none">
+        <h3>Grid Preview</h3>
+        <div class="grid-preview" id="grid-preview-levels"></div>
+        <button class="btn btn-submit" style="margin-top:12px" onclick="placeGrid()" id="grid-place-btn">
+          Place Grid Orders
+        </button>
+        <div id="grid-result" style="margin-top:8px;font-size:12px;color:var(--muted)"></div>
+      </div>
+    </div>
+
+    <!-- ── HISTORY PANEL ── -->
+    <div class="panel" id="panel-history">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h3 style="margin:0">Order History</h3>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input id="hist-sym" placeholder="Symbol filter" style="width:120px">
+            <select id="hist-strat" style="width:110px">
+              <option value="">All strategies</option>
+              <option>manual</option><option>twap</option><option>grid</option>
+            </select>
+            <button class="btn btn-sm btn-submit" onclick="loadHistory()">Load</button>
+          </div>
+        </div>
+        <div id="hist-stats" style="display:flex;gap:24px;font-size:11px;color:var(--muted);margin-bottom:12px"></div>
+        <div id="hist-table"><p class="empty">Click Load to fetch history.</p></div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</main>
+
+<div id="toast"></div>
+
+<script>
+// ── state ──
+let _gridData = null;
+let _twapPollTimer = null;
+
+// ── utilities ──
+function $(id){ return document.getElementById(id); }
+
+function toast(msg, type='info'){
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  $('toast').appendChild(el);
+  setTimeout(()=>el.remove(), 4000);
+}
+
+async function api(url, method='GET', body=null){
+  const opts = { method, headers: {'Content-Type':'application/json'} };
+  if(body) opts.body = JSON.stringify(body);
+  const r = await fetch(url, opts);
+  return r.json();
+}
+
+function fmtPnl(v){
+  const n = parseFloat(v);
+  if(isNaN(n)) return '—';
+  const col = n >= 0 ? 'pos-green' : 'pos-red';
+  return `<span class="${col}">${n >= 0 ? '+' : ''}${n.toFixed(4)} USDT</span>`;
+}
+
+function typeTag(t){
+  const cls = t==='MARKET'?'tag-market': t==='LIMIT'?'tag-limit':'tag-stop';
+  return `<span class="tag ${cls}">${t}</span>`;
+}
+
+function sideTag(s){
+  return `<span class="tag tag-${s.toLowerCase()}">${s}</span>`;
+}
+
+// ── tabs ──
+function switchTab(name, el){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  $(`panel-${name}`).classList.add('active');
+  el.classList.add('active');
+  if(name==='history') loadHistory();
+}
+
+// ── status ──
+async function checkStatus(){
+  try{
+    const d = await api('/api/status');
+    const dot = $('statusDot');
+    $('statusText').textContent = d.connected
+      ? `Connected · ${new Date(d.server_time).toLocaleTimeString()}`
+      : 'Disconnected';
+    dot.className = 'status-dot ' + (d.connected ? 'online' : 'offline');
+  }catch(e){ $('statusDot').className='status-dot offline'; }
+}
+
+// ── account ──
+async function loadAccount(){
+  try{
+    const d = await api('/api/account');
+    if(!d.ok){
+      // Show wallet cells as dashes, not "Error"
+      $('walletBal').textContent='—';
+      $('availBal').textContent='—';
+      $('upnl').textContent='—';
+      // Surface credential hint if available
+      if(d.cred_hint){
+        $('cred-banner').style.display='';
+        $('cred-hint').textContent = d.cred_hint;
+      }
+      return;
+    }
+    // Success — hide any previous cred warning
+    $('cred-banner').style.display='none';
+    $('walletBal').textContent = parseFloat(d.wallet_balance).toFixed(4)+' USDT';
+    $('availBal').textContent  = parseFloat(d.available_balance).toFixed(4)+' USDT';
+    $('upnl').innerHTML        = fmtPnl(d.unrealized_pnl);
+
+    const pl = $('positionsList');
+    if(!d.positions.length){ pl.innerHTML='<p class="empty">No open positions</p>'; return; }
+    pl.innerHTML = d.positions.map(p=>{
+      const pnl = parseFloat(p.unrealizedProfit||0);
+      const col = pnl>=0?'pos-green':'pos-red';
+      return `<div class="card" style="padding:10px;margin-bottom:6px">
+        <div class="stat-row"><b>${p.symbol}</b><span class="${col}">${pnl>=0?'+':''}${pnl.toFixed(4)}</span></div>
+        <div class="stat-row"><span class="stat-label">Amt</span><span>${p.positionAmt}</span></div>
+        <div class="stat-row"><span class="stat-label">Entry</span><span>${p.entryPrice}</span></div>
+      </div>`;
+    }).join('');
+  }catch(e){
+    $('walletBal').textContent='—';
+    $('availBal').textContent='—';
+  }
+}
+
+// ── open orders ──
+async function loadOpenOrders(){
+  try{
+    const d = await api('/api/open_orders');
+    const el = $('openOrdersList');
+    if(!d.ok||!d.orders.length){ el.innerHTML='<p class="empty">None</p>'; return; }
+    el.innerHTML = `<table>
+      <tr><th>Symbol</th><th>Side</th><th>Type</th><th>Price</th><th>Qty</th><th></th></tr>
+      ${d.orders.map(o=>`<tr>
+        <td>${o.symbol}</td>
+        <td>${sideTag(o.side)}</td>
+        <td>${typeTag(o.type)}</td>
+        <td>${o.price||'—'}</td>
+        <td>${o.origQty}</td>
+        <td><button class="btn btn-sm btn-cancel" onclick="quickCancel('${o.symbol}',${o.orderId})">✕</button></td>
+      </tr>`).join('')}
+    </table>`;
+  }catch(e){}
+}
+
+async function quickCancel(symbol, orderId){
+  const d = await api('/api/cancel','POST',{symbol,order_id:orderId});
+  if(d.ok){ toast(`Cancelled ${orderId}`,'ok'); loadOpenOrders(); }
+  else toast(d.error,'err');
+}
+
+// ── order form ──
+function togglePriceFields(){
+  const t = $('o-type').value;
+  $('price-group').style.display = t==='LIMIT'      ? '' : 'none';
+  $('stop-group').style.display  = t==='STOP_MARKET'? '' : 'none';
+}
+
+async function placeOrder(side){
+  hideErr('order-error');
+  const body = {
+    symbol:     $('o-symbol').value.trim().toUpperCase(),
+    side,
+    order_type: $('o-type').value,
+    quantity:   $('o-qty').value.trim(),
+    price:      $('o-price').value.trim()||null,
+    stop_price: $('o-stop').value.trim()||null,
+  };
+  const d = await api('/api/order','POST',body);
+  if(d.ok){
+    toast(`${side} order placed — ID ${d.order_id} · ${d.status}`,'ok');
+    loadAccount(); loadOpenOrders();
+  } else showErr('order-error', d.error);
+}
+
+async function cancelOrder(){
+  hideErr('cancel-error');
+  const d = await api('/api/cancel','POST',{
+    symbol:   $('c-symbol').value.trim().toUpperCase(),
+    order_id: parseInt($('c-oid').value),
+  });
+  if(d.ok){ toast(`Cancelled order ${d.order_id}`,'ok'); loadOpenOrders(); }
+  else showErr('cancel-error', d.error);
+}
+
+// ── TWAP ──
+async function startTwap(){
+  hideErr('twap-error');
+  const body = {
+    symbol:    $('t-symbol').value.trim().toUpperCase(),
+    side:      $('t-side').value,
+    total_qty: $('t-qty').value.trim(),
+    slices:    parseInt($('t-slices').value),
+    interval:  parseInt($('t-interval').value),
+  };
+  const d = await api('/api/twap','POST',body);
+  if(!d.ok){ showErr('twap-error',d.error); return; }
+
+  const runId = d.run_id;
+  toast(d.message,'info');
+  $('twap-progress-card').style.display='';
+  $('twap-run-label').textContent = runId;
+  $('twap-total').textContent = body.slices;
+  $('twap-log').innerHTML='';
+  $('twap-btn').disabled = true;
+
+  if(_twapPollTimer) clearInterval(_twapPollTimer);
+  _twapPollTimer = setInterval(()=>pollTwap(runId, body.slices), 1500);
+}
+
+async function pollTwap(runId, total){
+  const d = await api(`/api/twap/${runId}`);
+  if(!d.ok) return;
+  const pct = Math.round(d.slices_done/total*100);
+  $('twap-bar').style.width = pct+'%';
+  $('twap-done').textContent = d.slices_done;
+  $('twap-status').textContent = d.status;
+  if(d.executed_qty) $('twap-exec').textContent = d.executed_qty;
+
+  const logEl = $('twap-log');
+  logEl.innerHTML = (d.log||[]).map(s=>
+    `<div class="${s.ok?'slice-ok':'slice-err'}">[${s.ok?'✔':'✗'}] Slice ${s.slice} — qty=${s.qty} — ${s.info}</div>`
+  ).join('');
+  logEl.scrollTop = logEl.scrollHeight;
+
+  if(d.status==='done'||d.status==='aborted'){
+    clearInterval(_twapPollTimer);
+    $('twap-btn').disabled=false;
+    toast(`TWAP ${d.status} — executed ${d.executed_qty||'?'}`, d.status==='done'?'ok':'err');
+    loadAccount();
+  }
+}
+
+// ── Grid ──
+function previewGrid(){
+  hideErr('grid-error');
+  const centre = parseFloat($('g-centre').value);
+  const step   = parseFloat($('g-step').value);
+  const levels = parseInt($('g-levels').value);
+  const qty    = $('g-qty').value.trim();
+  const symbol = $('g-symbol').value.trim().toUpperCase();
+
+  if(isNaN(centre)||isNaN(step)||isNaN(levels)||!qty){
+    showErr('grid-error','All fields are required.'); return;
+  }
+  if(step<=0){ showErr('grid-error','Step must be positive.'); return; }
+  if(levels<1){ showErr('grid-error','Levels must be ≥ 1.'); return; }
+
+  const levelsArr = [];
+  for(let i=levels;i>=1;i--) levelsArr.push({side:'SELL',price:centre+step*i,qty});
+  for(let i=1;i<=levels;i++) levelsArr.push({side:'BUY', price:centre-step*i,qty});
+
+  _gridData = {symbol, centre_price:centre, step, levels, qty_per_level:qty};
+
+  $('grid-preview-card').style.display='';
+  $('grid-preview-levels').innerHTML = levelsArr.map(l=>`
+    <div class="grid-level grid-${l.side.toLowerCase()}">
+      <span>${l.side}</span>
+      <span>${l.price.toLocaleString()}</span>
+      <span>qty ${l.qty}</span>
+    </div>`).join('');
+  $('grid-result').textContent='';
+}
+
+async function placeGrid(){
+  if(!_gridData){ toast('Run preview first.','err'); return; }
+  const btn = $('grid-place-btn');
+  btn.disabled=true; btn.textContent='Placing…';
+  const d = await api('/api/grid','POST',_gridData);
+  btn.disabled=false; btn.textContent='Place Grid Orders';
+  if(d.ok){
+    $('grid-result').innerHTML=`<span style="color:var(--green)">✔ ${d.placed_count} orders placed</span>${d.failed_count?`<span style="color:var(--red)"> · ${d.failed_count} failed</span>`:''}${d.dry_run?' <span class="tag tag-dry">DRY RUN</span>':''}`;
+    toast(`Grid placed: ${d.placed_count} orders`,'ok');
+    loadOpenOrders();
+  } else showErr('grid-error', d.error);
+}
+
+// ── History ──
+async function loadHistory(){
+  const sym   = $('hist-sym').value.trim().toUpperCase()||null;
+  const strat = $('hist-strat').value||null;
+  const url   = '/api/history?limit=100'+(sym?`&symbol=${sym}`:'')+( strat?`&strategy=${strat}`:'');
+  const d     = await api(url);
+  if(!d.ok) return;
+
+  const s = d.stats;
+  $('hist-stats').innerHTML = s ? `
+    <span>Total: <b>${s.total}</b></span>
+    <span style="color:var(--green)">OK: <b>${s.successful}</b></span>
+    <span style="color:var(--red)">Failed: <b>${s.failed}</b></span>
+    <span style="color:var(--yellow)">Dry runs: <b>${s.dry_runs}</b></span>
+    <span>Symbols: <b>${s.symbols_traded}</b></span>` : '';
+
+  if(!d.rows.length){ $('hist-table').innerHTML='<p class="empty">No records found.</p>'; return; }
+
+  $('hist-table').innerHTML=`<table>
+    <tr><th>#</th><th>Time</th><th>Symbol</th><th>Side</th><th>Type</th><th>Qty</th><th>Executed</th><th>Avg Price</th><th>Status</th><th>Strategy</th></tr>
+    ${d.rows.map(r=>`<tr>
+      <td style="color:var(--muted)">${r.id}</td>
+      <td style="color:var(--muted)">${r.created_at.slice(0,19).replace('T',' ')}</td>
+      <td><b>${r.symbol}</b></td>
+      <td>${sideTag(r.side)}</td>
+      <td>${typeTag(r.order_type)}</td>
+      <td>${r.quantity}</td>
+      <td>${r.executed_qty||'—'}</td>
+      <td>${r.avg_price&&r.avg_price!='0'&&r.avg_price!='0.00000'?r.avg_price:'—'}</td>
+      <td class="${r.error?'tag-err':'tag-ok'}">${r.status||'—'}</td>
+      <td>${r.strategy}${r.dry_run?' <span class="tag tag-dry">~</span>':''}</td>
+    </tr>`).join('')}
+  </table>`;
+}
+
+// ── helpers ──
+function showErr(id, msg){ const el=$(id); el.textContent=msg; el.classList.remove('hidden'); }
+function hideErr(id){ $(id).classList.add('hidden'); }
+
+// Symbol hint — fires on every keystroke in a symbol input
+function validateSymbolHint(inputEl, hintId){
+  const val = inputEl.value.trim().toUpperCase();
+  const hint = $(hintId);
+  if(val.length > 2 && !val.endsWith('USDT')){
+    hint.textContent = '⚠ USDT-M Testnet only supports USDT pairs (e.g. BTCUSDT). ' +
+                       'Other quote currencies return "Invalid Symbol".';
+    hint.style.display = '';
+    inputEl.style.borderColor = 'var(--yellow)';
+  } else {
+    hint.style.display = 'none';
+    inputEl.style.borderColor = '';
+  }
+}
+
+// Run credential check on startup and display banner if keys are missing
+async function checkCredentials(){
+  try{
+    const d = await api('/api/credentials_check');
+    if(!d.ok && d.hint){
+      $('cred-banner').style.display='';
+      $('cred-hint').textContent = d.hint;
+    }
+  }catch(e){}
+}
+
+// ── init ──
+togglePriceFields();
+checkStatus();
+checkCredentials();
+loadAccount();
+loadOpenOrders();
+setInterval(()=>{ checkStatus(); loadAccount(); loadOpenOrders(); }, 15000);
+</script>
+</body>
+</html>
